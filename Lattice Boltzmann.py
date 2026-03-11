@@ -1,15 +1,53 @@
+#import cupy as cp
 import numpy as np
 import matplotlib.pyplot as plt
-
-         #  ^y
-Nx = 200 #  |
+from PIL import Image
+         #  ^ y
+Nx = 200 # |
 Ny = 50 #  | 
          #  (0,0)-->x
+         
 
 frames = 1000
 rho0= 1.01
 uxscale = 0.1
-T= 0.6
+T= 0.7
+
+
+#Image to array for collision object
+         
+###Cube solid
+##solid = np.zeros((Nx,Ny),dtype=bool)
+##s=5
+##solid[int(Nx/4-s):int(Nx/4+s),int(Ny/2-s):int(Ny/2+s)] = True
+
+#Image solid
+img = Image.open(r'C:\Users\owner\Documents\Lattice-Boltzmann-Method\Airfoil B&W Images\airfoil 200x50.jpg')
+
+img_size = np.array(img.size)
+if (img_size[0] != Nx) or (img_size[1] != Ny):
+    print("image size does not match Nx,Ny")
+
+img = np.array(img)
+print(img.shape)
+img = img.T[:,::-1]
+#img = img[::-1] #now has shape Nx,Ny
+print(img.shape)
+print(img.max())
+print(img.min())
+solid = np.zeros((Nx,Ny),dtype=bool)
+#translation of image
+xshift = Nx//16
+yshift = 0*Ny//20
+for i in range(Nx):
+    for j in range(Ny):
+        if (img[i,j] < 100):
+            if ((i + xshift) > (Nx-1)) or (((Ny-1-j)+yshift) > (Ny-1)) or ((i + xshift) < 0) or ((((Ny-1-j)+yshift) < 0)):
+                print("xshift or yshift too large")
+            solid[(i+xshift),(j+yshift)] = True
+
+#solid = img < 50
+
 
 
 f = np.zeros((Nx,Ny,9)) 
@@ -26,12 +64,12 @@ f = np.zeros((Nx,Ny,9))
 
 weights = np.array([4/9,1/9,1/9,1/9,1/9,1/36,1/36,1/36,1/36])
 f[...,:] = weights # initialising flow with desnity of 1 everywhere and no velocity
-v = np.array([(0,0),(1,0),(0,1),(-1,0),(0,-1),(1,1),(-1,1),(-1,-1),(1,-1)])
+v =np.array([(0,0),(1,0),(0,1),(-1,0),(0,-1),(1,1),(-1,1),(-1,-1),(1,-1)])
 cs2 = 1/3 # sound speed squared
 #v_shaped = np.zeros((Nx,Ny,9))
 #v_shaped[...,:] = v
 weights_shaped = np.zeros((Nx,Ny,9))
-weights_shaped[...,:] = weights
+weights_shaped[...,:] = np.array(weights)
 
 
 n=5
@@ -76,6 +114,7 @@ for y in range(Ny):
         ])
 
 M = np.linalg.solve(A,C)
+M = np.array(M)
 #print(M.shape)
 
 
@@ -88,16 +127,16 @@ def cprint(*args, **kwargs):
 plt.ion()
 fig, ax = plt.subplots()
 modu = np.zeros((Nx,Ny))
-img = ax.imshow(modu.T, origin='lower',cmap='Greys')
+img = ax.imshow(modu.T, origin='lower',cmap='viridis')
 plt.colorbar(img)
 
 #print(np.sum(f,axis=2).max())
 #print("check1")
 
-
+f = np.array(f)
 #for t in range(frames):
 while True:
-
+    
     #streaming step with boundary conditions considered
     f_streamed = np.zeros((Nx,Ny,9))
 
@@ -114,8 +153,6 @@ while True:
 
 
     #SOLID
-    solid = np.zeros((Nx,Ny),dtype=bool)
-    solid[25:35,20:30] = True
     for i,opp in [(1,3),(2,4),(3,1),(4,2),(5,7),(6,8),(7,5),(8,6)]:
         f_streamed[solid,i] = f_streamed[solid,opp]
         
@@ -213,6 +250,8 @@ while True:
 
     
     #collision_step
+    f = np.array(f)
+    
     f_eq = np.zeros((Nx,Ny,9)) #make rho which is size nx,ny,1, then find u which is the same, then do 9 f_eq slices, think matrix multipliation for dot product
     rho = f.sum(axis = 2) #summed over second axis (0,1,2) so now one value of rho at each point
     u = ((1/rho).T * np.einsum("ijk,kl->ijl",f,v).T).T #einstein summation over shared index (9 term stuff) maybe could be used?
@@ -244,9 +283,17 @@ while True:
 
     
     #print("is it a 0?")
+
+
+    #PRESSURE
+    modu = rho
+
+    #VELOCITY
     modu = np.sum(u*u,axis=2)**0.5
+    #modu =modu.get()
     img.set_data(modu.T)
     img.set_clim(0.0,modu.max()*1.1)
+    #img.set_clim(1.04,modu.max())
     #print(usquared.max())
     plt.pause(0.001)
     #print(
